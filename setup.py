@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'usb_camera_node = usb_camera_node.usb_camera:main',
+            'usb_camera_node = ros2_usb_camera.usb_camera_node:main',
         ],
     },
 )

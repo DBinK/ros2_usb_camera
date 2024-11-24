@@ -1,6 +1,11 @@
 # 相机测试
 import cv2
 import time
+import os
+
+class USBCamera:
+    def __init__(self, camera_parameters):
+        self.camera_parameters = camera_parameters
 
 cap = cv2.VideoCapture(0)
 
@@ -15,9 +20,13 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 fps = 180  # 你想要的帧率
 cap.set(cv2.CAP_PROP_FPS, fps)
 
+w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+fps = cap.get(cv2.CAP_PROP_FPS)
+
 # 检查设置是否成功
-print(f"设置的分辨率: {cap.get(cv2.CAP_PROP_FRAME_WIDTH)} x {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
-print(f"设置的帧率: {cap.get(cv2.CAP_PROP_FPS)}")
+print(f"设置的分辨率: {w} x {h}")
+print(f"设置的帧率: {fps}")
 
 while True:
     start = time.time_ns()
@@ -28,10 +37,11 @@ while True:
 
     dt = (end - start) / 1e6  # 转为 ms
 
-    print(f"延迟为 {dt} ms, 图像尺寸为 {frame.shape}")
+    print(f"延迟: {dt} ms, fps: {int(1/dt*1000)} Hz, 图像尺寸为 {frame.shape}, 设置的帧率是 {fps}")
 
-    cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
-    cv2.imshow("frame", frame)
+    if os.environ.get('DISPLAY') and os.isatty(0):
+        cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
+        cv2.imshow("frame", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
