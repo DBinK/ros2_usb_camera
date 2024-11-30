@@ -51,8 +51,8 @@ class USBCameraNode(Node):
         self.declare_parameter('image_height', self.image_height)
         self.declare_parameter('fps', self.fps)
 
-        # 添加参数变化回调
-        self.add_on_set_parameters_callback(self.parameters_callback)
+        # # 添加参数变化回调
+        # self.add_on_set_parameters_callback(self.parameters_callback)
 
         # 初始化相机
         self.cap = cv2.VideoCapture(self.camera_id)
