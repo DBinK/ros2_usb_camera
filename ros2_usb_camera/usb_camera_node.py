@@ -45,14 +45,14 @@ class USBCameraNode(Node):
         self.image_height = camera_params.get('image_height', 720)
         self.fps = camera_params.get('fps', 60)
 
-        # # 注册 ROS2 参数
-        # self.declare_parameter('camera_id', self.camera_id)
-        # self.declare_parameter('image_width', self.image_width)
-        # self.declare_parameter('image_height', self.image_height)
-        # self.declare_parameter('fps', self.fps)
+        # 注册 ROS2 参数
+        self.declare_parameter('camera_id', self.camera_id)
+        self.declare_parameter('image_width', self.image_width)
+        self.declare_parameter('image_height', self.image_height)
+        self.declare_parameter('fps', self.fps)
 
-        # # 添加参数变化回调
-        # self.add_on_set_parameters_callback(self.parameters_callback)
+        # 添加参数变化回调
+        self.add_on_set_parameters_callback(self.parameters_callback)
 
         # 初始化相机
         self.cap = cv2.VideoCapture(self.camera_id)
