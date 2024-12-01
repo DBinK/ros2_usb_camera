@@ -1,23 +1,26 @@
+#!/usr/bin/env python3
 import time
 import cv2
 import os
-import threading
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header                    # 头部消息类型
+from std_msgs.msg import Header 
 from sensor_msgs.msg import Image, CameraInfo      # 图像消息类型
 from rcl_interfaces.msg import SetParametersResult  
 
 from cv_bridge import CvBridge
 
-# 摄像头参数
+
 camera_params = {
     'camera_id': 0,
     'image_width': 1280,
     'image_height': 720,
+    'auto_exposure': 1,
+    'exposure_time': 100,
     'fps': 60
 }
+
 
 def time_diff(last_time=[None]):
     """计算两次调用之间的时间差，单位为ns。"""
@@ -32,23 +35,25 @@ def time_diff(last_time=[None]):
         last_time[0] = current_time         # 更新上次调用时间
         return diff                         # 返回时间差 ns
 
-class USBCameraNode(Node):
-    def __init__(self, name):
-        super().__init__(name)                                # ROS2节点父类初始化
-        
-        self.get_logger().info('Starting USBCameraNode!')
+class ParametersBasicNode(Node):
+    """
+    创建一个ParametersBasicNode节点，并在初始化时输出一个话
+    """
 
-        # 创建发布者
+    def __init__(self, name):
+        super().__init__(name)
+
+        self.get_logger().info(f"节点已启动：{name}!")
+
+        # 创建发布者    
         self.image_pub = self.create_publisher(Image, 'image_raw', 10)
         self.cv_bridge = CvBridge()
 
-        # 初始化标志位
-        self.waiting_for_parameters = False
-
-        # 获取相机参数
         self.camera_id = camera_params.get('camera_id', 0)
         self.image_width = camera_params.get('image_width', 1280)
         self.image_height = camera_params.get('image_height', 720)
+        self.auto_exposure = camera_params.get('auto_exposure', 1)
+        self.exposure_time = camera_params.get('exposure_time', 100)
         self.fps = camera_params.get('fps', 60)
 
         # 注册 ROS2 参数
@@ -65,15 +70,16 @@ class USBCameraNode(Node):
         self.set_camera_parameters() # 设置相机参数
         self.get_logger().info(f'初始化 {self.camera_id} 号相机')
 
-        self.get_logger().info('启动USB相机图像捕捉循环')
-
-        self.cam_thread = threading.Thread(target=self.loop)
-        self.cam_thread.start()
+        # 声明参数
+        self.declare_parameter('rcl_log_level', 0)
+        # 获取参数
+        log_level = self.get_parameter("rcl_log_level").value
+        # 设置参数
+        self.get_logger().set_level(log_level)
+        # 定时修改
+        self.timer = self.create_timer(0.001, self.timer_callback)
 
     def parameters_callback(self, params):
-
-        self.waiting_for_parameters = True  # 让 loop 里的循环结束
-
         for param in params:
 
             if param.name == 'camera_id':
@@ -92,74 +98,71 @@ class USBCameraNode(Node):
                 self.set_camera_parameters()
                 self.get_logger().info(f'更新 相机参数: {param.name} = {param.value}')
 
+            elif param.name == 'auto_exposure':
+                self.auto_exposure = param.value
+                self.set_camera_parameters()
+                self.get_logger().info(f'更新 相机参数: {param.name} = {param.value}')
+
+            elif param.name == 'exposure_time':
+                self.exposure_time = param.value
+                self.set_camera_parameters()
+                self.get_logger().info(f'更新 相机参数: {param.name} = {param.value}')
+
             elif param.name == 'fps':
                 self.fps = param.value
                 self.set_camera_parameters()
                 self.get_logger().info(f'更新 相机参数: {param.name} = {param.value}')
 
-        self.waiting_for_parameters = False  # 让 loop 里的循环结束
-
-        time.sleep(1)  # 等待参数更新完成
-        self.get_logger().info('相机参数更新完成, 重启相机线程')
-        self.cam_thread = threading.Thread(target=self.loop)
-        self.cam_thread.start()
-
         return SetParametersResult(successful=True)  # 返回成功结果
-    
+
     def set_camera_parameters(self):
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.image_width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.image_height)
+        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE,self.auto_exposure)
+        self.cao.set(cv2.CAP_PROP_EXPOSURE, self.exposure_time)
         self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
         print(f"设置的相机: {self.camera_id} 号相机")
         print(f"设置的分辨率: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)} x {self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
         print(f"设置的帧率: {self.cap.get(cv2.CAP_PROP_FPS)}")
 
-    def loop(self):
-        
-        self.get_logger().info("进入 loop 线程")
 
-        cnt = 0
-        while not self.cap.isOpened():
-            cnt += 1
-            print(f"摄像头打开失败，请检查摄像头是否正常连接！{cnt}")
-            time.sleep(0.1)
-            continue
+    def timer_callback(self):
+        """定时器回调函数"""
+        # 获取参数
+        log_level = self.get_parameter("rcl_log_level").value
 
-        while not self.waiting_for_parameters:  # 进入 parameters_callback() 时跳出循环
+        # 设置参数
+        self.get_logger().set_level(log_level)
+        print(f"========================{log_level}=============================")
+        # self.get_logger().debug("我是DEBUG级别的日志，我被打印出来了!")
+        # self.get_logger().info("我是INFO级别的日志，我被打印出来了!")
+        # self.get_logger().warn("我是WARN级别的日志，我被打印出来了!")
+        # self.get_logger().error("我是ERROR级别的日志，我被打印出来了!")
+        # self.get_logger().fatal("我是FATAL级别的日志，我被打印出来了!")
 
-            ret, frame = self.cap.read()
-
-            if ret:
-                if os.environ.get('DISPLAY') and os.isatty(0):  # 检查有无图形界面
-                    cv2.namedWindow("raw", cv2.WINDOW_NORMAL)
-                    cv2.imshow("raw", frame)
-                
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break 
-
-                dt = time_diff()         
-
-                print(f"图像大小: {frame.shape}, 帧率 FPS: {1 / (dt/1e9) }, 帧时间: {dt/1e6}")    
-                
-                ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-                self.image_pub.publish(ros_image)
+        # 读取摄像头
+        ret, frame = self.cap.read()
+        if ret:
+            if os.environ.get('DISPLAY') and os.isatty(0):  # 检查有无图形界面
+                cv2.namedWindow("raw", cv2.WINDOW_NORMAL)
+                cv2.imshow("raw", frame)
             
-            time.sleep(0.001)
+                # if cv2.waitKey(1) & 0xFF == ord('q'):
+                #     break 
 
-        self.get_logger().info("结束了 loop 线程")
+            dt = time_diff()         
 
-    def destroy_node(self):
-        self.cap.release()  # 释放摄像头资源
-        super().destroy_node()
+            print(f"图像大小: {frame.shape}, 帧率 FPS: {1 / (dt/1e9) }, 帧时间: {dt/1e6}")    
+            
+            ros_image = self.cv_bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+            self.image_pub.publish(ros_image)
+
+
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = USBCameraNode('usb_camera_node')
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
+    rclpy.init(args=args) # 初始化rclpy
+    node = ParametersBasicNode("parameters_basic")  # 新建一个节点
+    rclpy.spin(node) # 保持节点运行，检测是否收到退出指令（Ctrl+C）
+    rclpy.shutdown() # 关闭rclpy
