@@ -3,9 +3,6 @@ import cv2
 import time
 import os
 
-class USBCamera:
-    def __init__(self, camera_parameters):
-        self.camera_parameters = camera_parameters
 
 cap = cv2.VideoCapture(0)
 
