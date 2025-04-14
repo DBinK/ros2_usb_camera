@@ -2,7 +2,7 @@
 
 提供更多的参数控制, 包含: 
 
-```
+```python
 # 摄像头参数
 camera_params = {
     'camera_id': 0,
